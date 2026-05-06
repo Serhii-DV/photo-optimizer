@@ -109,7 +109,7 @@ copy_photo_metadata() {
     local source_file="$1"
     local target_file="$2"
 
-    exiftool -overwrite_original -tagsFromFile "$source_file" -exif:all "$target_file" > /dev/null
+    exiftool -overwrite_original -tagsFromFile "$source_file" -all:all -unsafe "$target_file" > /dev/null
 }
 
 copy_video_metadata() {
@@ -147,7 +147,7 @@ optimize_photos() {
         filename="$(basename "${photo_file%.*}")"
         output_file="$output_directory/$filename.webp"
 
-        cwebp -q "$photo_quality" "$photo_file" -o "$output_file" -quiet > /dev/null 2>&1
+        cwebp -q "$photo_quality" -metadata all "$photo_file" -o "$output_file" -quiet > /dev/null 2>&1
         copy_photo_metadata "$photo_file" "$output_file"
 
         processed_files=$((processed_files + 1))
