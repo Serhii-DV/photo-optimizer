@@ -10,7 +10,14 @@ Optimize supported photos and videos from one folder:
 ./optimize.sh --input /path/to/media
 ```
 
-By default, optimized files are saved to `/path/to/media/optimized`.
+Optimize one media file:
+
+```bash
+./optimize.sh --input /path/to/media/photo.jpg
+./optimize.sh --input /path/to/media/video.mp4
+```
+
+By default, optimized files are saved to an `optimized` folder beside the input.
 
 Optional settings:
 

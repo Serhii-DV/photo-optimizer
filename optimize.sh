@@ -5,7 +5,7 @@ set -euo pipefail
 readonly DEFAULT_PHOTO_QUALITY=80
 readonly DEFAULT_VIDEO_CRF=32
 
-input_directory=""
+input_path=""
 output_directory=""
 photo_quality="$DEFAULT_PHOTO_QUALITY"
 video_crf="$DEFAULT_VIDEO_CRF"
@@ -14,11 +14,11 @@ optimized_types=0
 
 show_usage() {
     cat <<USAGE
-Usage: $0 --input input_directory [options]
+Usage: $0 --input input_path [options]
 
 Options:
-  --input directory          Folder with media files to optimize.
-  --output directory         Folder for optimized files. Defaults to input_directory/optimized.
+  --input path               Media file or folder with media files to optimize.
+  --output directory         Folder for optimized files. Defaults to input folder/optimized or file parent/optimized.
   --photo-quality value      WebP quality for images. Defaults to $DEFAULT_PHOTO_QUALITY.
   --video-crf value          CRF value for videos. Defaults to $DEFAULT_VIDEO_CRF.
   --only photos|videos|all   Optimize only one media type. Defaults to all.
@@ -35,8 +35,8 @@ parse_arguments() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --input)
-                [ "$#" -ge 2 ] || fail "--input requires a directory."
-                input_directory="$2"
+                [ "$#" -ge 2 ] || fail "--input requires a file or directory."
+                input_path="$2"
                 shift 2
                 ;;
             --output)
@@ -71,11 +71,16 @@ parse_arguments() {
 }
 
 validate_arguments() {
-    [ -n "$input_directory" ] || fail "--input is required."
-    [ -d "$input_directory" ] || fail "Input directory does not exist: $input_directory"
+    [ -n "$input_path" ] || fail "--input is required."
+    [ -e "$input_path" ] || fail "Input path does not exist: $input_path"
+    [ -f "$input_path" ] || [ -d "$input_path" ] || fail "Input path must be a file or directory: $input_path"
 
     if [ -z "$output_directory" ]; then
-        output_directory="$input_directory/optimized"
+        if [ -d "$input_path" ]; then
+            output_directory="$input_path/optimized"
+        else
+            output_directory="$(dirname "$input_path")/optimized"
+        fi
     fi
 
     case "$only" in
@@ -96,7 +101,7 @@ collect_files() {
     shift
 
     mapfile -d '' -t target_files < <(
-        find "$input_directory" -maxdepth 1 -type f \( "$@" \) -print0 | sort -z
+        find "$input_path" -maxdepth 1 -type f \( "$@" \) -print0 | sort -z
     )
 }
 
@@ -203,7 +208,7 @@ main() {
     fi
 
     if [ "$optimized_types" -eq 0 ]; then
-        fail "No supported media files found in: $input_directory"
+        fail "No supported media files found in: $input_path"
     fi
 
     echo "Optimized files saved to: $output_directory"
