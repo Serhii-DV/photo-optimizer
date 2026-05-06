@@ -185,6 +185,11 @@ optimize_videos() {
 }
 
 main() {
+    if [ "$#" -eq 0 ]; then
+        show_usage
+        fail "--input is required."
+    fi
+
     parse_arguments "$@"
     validate_arguments
     mkdir -p "$output_directory"
