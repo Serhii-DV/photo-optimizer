@@ -15,3 +15,5 @@ help: ## Display this help message
 install: ## Install dependencies
 	sudo apt-get update
 	sudo apt-get install webp ffmpeg exiv2 libimage-exiftool-perl
+	chmod +x optimize_photos.sh
+	chmod +x optimize_videos.sh
