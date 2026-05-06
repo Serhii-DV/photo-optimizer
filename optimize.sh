@@ -119,7 +119,7 @@ copy_video_metadata() {
     local source_file="$1"
     local target_file="$2"
 
-    exiftool -tagsFromFile "$source_file" "$target_file" > /dev/null
+    exiftool -overwrite_original -tagsFromFile "$source_file" "$target_file" > /dev/null
 }
 
 format_bytes() {
