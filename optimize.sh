@@ -109,7 +109,7 @@ copy_photo_metadata() {
     local source_file="$1"
     local target_file="$2"
 
-    exiv2 -ea- "$source_file" | exiv2 -ia- "$target_file" > /dev/null 2>&1 || true
+    exiftool -overwrite_original -tagsFromFile "$source_file" -exif:all "$target_file" > /dev/null
 }
 
 copy_video_metadata() {
@@ -136,7 +136,7 @@ optimize_photos() {
     [ "$total_files" -gt 0 ] || return 0
 
     require_command cwebp
-    require_command exiv2
+    require_command exiftool
 
     echo "Optimizing $total_files photo(s)..."
 

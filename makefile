@@ -18,7 +18,7 @@ help: ## Display this help message
 .PHONY: install
 install: ## Install dependencies
 	sudo apt-get update
-	sudo apt-get install webp ffmpeg exiv2 libimage-exiftool-perl
+	sudo apt-get install webp ffmpeg libimage-exiftool-perl
 	chmod +x optimize.sh
 
 .PHONY: install-alias
