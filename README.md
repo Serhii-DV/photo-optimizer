@@ -44,6 +44,18 @@ Verify EXIF data in one image or a folder:
 ./verify_exif.sh --input /path/to/media/photo.webp
 ```
 
+The verifier writes image paths missing EXIF to `missing_exif.txt` beside the checked input. Use a custom file path:
+
+```bash
+./verify_exif.sh --input /path/to/media --missing-file /path/to/missing_exif.txt
+```
+
+Optimize files from a text list, one file path per line:
+
+```bash
+./optimize.sh --input-list /path/to/missing_exif.txt --output /path/to/output
+```
+
 ## Shell alias
 
 Install a user-level Bash alias in `~/.bash_aliases`:

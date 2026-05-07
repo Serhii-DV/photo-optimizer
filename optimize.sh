@@ -8,6 +8,7 @@ readonly METADATA_COPY_ATTEMPTS=5
 readonly METADATA_COPY_RETRY_DELAY_SECONDS=1
 
 input_path=""
+input_list_path=""
 output_directory=""
 photo_quality="$DEFAULT_PHOTO_QUALITY"
 video_crf="$DEFAULT_VIDEO_CRF"
@@ -21,10 +22,11 @@ total_optimized_bytes=0
 
 show_usage() {
     cat <<USAGE
-Usage: $0 --input input_path [options]
+Usage: $0 (--input input_path | --input-list file_path) [options]
 
 Options:
   --input path               Media file or folder with media files to optimize.
+  --input-list file          Text file with media file paths to optimize, one path per line.
   --output directory         Folder for optimized files. Defaults to input folder/optimized or file parent/optimized.
   --photo-quality value      WebP quality for images. Defaults to $DEFAULT_PHOTO_QUALITY.
   --video-crf value          CRF value for videos. Defaults to $DEFAULT_VIDEO_CRF.
@@ -45,6 +47,11 @@ parse_arguments() {
             --input)
                 [ "$#" -ge 2 ] || fail "--input requires a file or directory."
                 input_path="$2"
+                shift 2
+                ;;
+            --input-list)
+                [ "$#" -ge 2 ] || fail "--input-list requires a text file."
+                input_list_path="$2"
                 shift 2
                 ;;
             --output)
@@ -84,12 +91,20 @@ parse_arguments() {
 }
 
 validate_arguments() {
-    [ -n "$input_path" ] || fail "--input is required."
-    [ -e "$input_path" ] || fail "Input path does not exist: $input_path"
-    [ -f "$input_path" ] || [ -d "$input_path" ] || fail "Input path must be a file or directory: $input_path"
+    [ -n "$input_path" ] || [ -n "$input_list_path" ] || fail "--input or --input-list is required."
+    [ -z "$input_path" ] || [ -z "$input_list_path" ] || fail "Use either --input or --input-list, not both."
+
+    if [ -n "$input_path" ]; then
+        [ -e "$input_path" ] || fail "Input path does not exist: $input_path"
+        [ -f "$input_path" ] || [ -d "$input_path" ] || fail "Input path must be a file or directory: $input_path"
+    else
+        [ -f "$input_list_path" ] || fail "Input list file does not exist: $input_list_path"
+    fi
 
     if [ -z "$output_directory" ]; then
-        if [ -d "$input_path" ]; then
+        if [ -n "$input_list_path" ]; then
+            output_directory="$(dirname "$input_list_path")/optimized"
+        elif [ -d "$input_path" ]; then
             output_directory="$input_path/optimized"
         else
             output_directory="$(dirname "$input_path")/optimized"
@@ -115,12 +130,48 @@ require_command() {
 }
 
 collect_files() {
-    local -n target_files=$1
+    local target_name="$1"
+    local -n target_files=$target_name
     shift
+
+    if [ -n "$input_list_path" ]; then
+        collect_files_from_list "$target_name" "$@"
+        return
+    fi
 
     mapfile -d '' -t target_files < <(
         find "$input_path" -maxdepth 1 -type f \( "$@" \) -print0 | sort -z
     )
+}
+
+collect_files_from_list() {
+    local -n target_files=$1
+    shift
+
+    local -a listed_files=()
+    local listed_file
+
+    while IFS= read -r listed_file || [ -n "$listed_file" ]; do
+        [ -n "$listed_file" ] || continue
+        case "$listed_file" in
+            \#*) continue ;;
+        esac
+        [ -f "$listed_file" ] || fail "Listed file does not exist: $listed_file"
+        listed_files+=("$listed_file")
+    done < "$input_list_path"
+
+    if [ "${#listed_files[@]}" -eq 0 ]; then
+        target_files=()
+        return
+    fi
+
+    mapfile -d '' -t target_files < <(
+        find "${listed_files[@]}" -maxdepth 0 -type f \( "$@" \) -print0 | sort -z
+    )
+}
+
+is_folder_input() {
+    [ -n "$input_path" ] && [ -d "$input_path" ]
 }
 
 copy_photo_metadata() {
@@ -243,7 +294,7 @@ print_skipped_file() {
 }
 
 print_summary() {
-    [ -d "$input_path" ] || return 0
+    is_folder_input || [ -n "$input_list_path" ] || return 0
     [ "$optimized_files" -gt 0 ] || [ "$skipped_files" -gt 0 ] || return 0
 
     if [ "$optimized_files" -eq 0 ]; then
@@ -278,7 +329,7 @@ print_summary() {
 optimize_photos() {
     local -a photo_files=()
     collect_files photo_files \
-        -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png'
+        -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp'
 
     local total_files="${#photo_files[@]}"
     [ "$total_files" -gt 0 ] || return 0
@@ -350,7 +401,7 @@ optimize_videos() {
 main() {
     if [ "$#" -eq 0 ]; then
         show_usage
-        fail "--input is required."
+        fail "--input or --input-list is required."
     fi
 
     parse_arguments "$@"
@@ -368,6 +419,10 @@ main() {
     fi
 
     if [ "$optimized_types" -eq 0 ]; then
+        if [ -n "$input_list_path" ]; then
+            fail "No supported media files found in: $input_list_path"
+        fi
+
         fail "No supported media files found in: $input_path"
     fi
 

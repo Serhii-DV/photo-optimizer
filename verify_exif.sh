@@ -3,6 +3,7 @@
 set -euo pipefail
 
 input_path=""
+missing_exif_file=""
 checked_files=0
 files_with_exif=0
 files_without_exif=0
@@ -10,11 +11,12 @@ failed_files=0
 
 show_usage() {
     cat <<USAGE
-Usage: $0 --input input_path
+Usage: $0 --input input_path [options]
 
 Options:
-  --input path   Image file or folder with image files to verify.
-  -h, --help     Show this help message.
+  --input path          Image file or folder with image files to verify.
+  --missing-file path   File to write image paths missing EXIF. Defaults to input folder/missing_exif.txt.
+  -h, --help            Show this help message.
 USAGE
 }
 
@@ -29,6 +31,11 @@ parse_arguments() {
             --input)
                 [ "$#" -ge 2 ] || fail "--input requires a file or directory."
                 input_path="$2"
+                shift 2
+                ;;
+            --missing-file)
+                [ "$#" -ge 2 ] || fail "--missing-file requires a file path."
+                missing_exif_file="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -46,6 +53,14 @@ validate_arguments() {
     [ -n "$input_path" ] || fail "--input is required."
     [ -e "$input_path" ] || fail "Input path does not exist: $input_path"
     [ -f "$input_path" ] || [ -d "$input_path" ] || fail "Input path must be a file or directory: $input_path"
+
+    if [ -z "$missing_exif_file" ]; then
+        if [ -d "$input_path" ]; then
+            missing_exif_file="$input_path/missing_exif.txt"
+        else
+            missing_exif_file="$(dirname "$input_path")/missing_exif.txt"
+        fi
+    fi
 }
 
 require_command() {
@@ -116,6 +131,7 @@ verify_exif() {
     fi
 
     files_without_exif=$((files_without_exif + 1))
+    printf "%s\n" "$image_file" >> "$missing_exif_file"
     printf "[%d/%d] %s: missing EXIF\n" \
         "$current_file" \
         "$total_files" \
@@ -131,6 +147,8 @@ main() {
     parse_arguments "$@"
     validate_arguments
     require_command exiftool
+    mkdir -p "$(dirname "$missing_exif_file")"
+    : > "$missing_exif_file"
 
     local -a image_files=()
     collect_image_files image_files
@@ -151,6 +169,7 @@ main() {
         "$files_with_exif" \
         "$files_without_exif" \
         "$failed_files"
+    printf "Missing EXIF file list: %s\n" "$missing_exif_file"
 
     if [ "$files_without_exif" -gt 0 ] || [ "$failed_files" -gt 0 ]; then
         exit 1
