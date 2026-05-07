@@ -111,15 +111,21 @@ collect_files() {
 copy_photo_metadata() {
     local source_file="$1"
     local target_file="$2"
+    local metadata_output
 
-    exiftool -overwrite_original -tagsFromFile "$source_file" -all:all -unsafe "$target_file" > /dev/null
+    if ! metadata_output=$(exiftool -m -q -overwrite_original_in_place -tagsFromFile "$source_file" -all:all -unsafe "$target_file" 2>&1); then
+        printf "Warning: failed to copy metadata to %s\n%s\n" "$target_file" "$metadata_output" >&2
+    fi
 }
 
 copy_video_metadata() {
     local source_file="$1"
     local target_file="$2"
+    local metadata_output
 
-    exiftool -overwrite_original -tagsFromFile "$source_file" "$target_file" > /dev/null
+    if ! metadata_output=$(exiftool -m -q -overwrite_original_in_place -tagsFromFile "$source_file" "$target_file" 2>&1); then
+        printf "Warning: failed to copy metadata to %s\n%s\n" "$target_file" "$metadata_output" >&2
+    fi
 }
 
 format_bytes() {
