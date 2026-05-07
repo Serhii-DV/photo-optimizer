@@ -293,6 +293,19 @@ print_skipped_file() {
         "$output_file"
 }
 
+print_processing_file() {
+    local current_file="$1"
+    local total_files="$2"
+    local source_file="$3"
+    local output_file="$4"
+
+    printf "[%d/%d] %s: optimizing -> %s\n" \
+        "$current_file" \
+        "$total_files" \
+        "$(basename "$source_file")" \
+        "$output_file"
+}
+
 print_summary() {
     is_folder_input || [ -n "$input_list_path" ] || return 0
     [ "$optimized_files" -gt 0 ] || [ "$skipped_files" -gt 0 ] || return 0
@@ -353,6 +366,7 @@ optimize_photos() {
             continue
         fi
 
+        print_processing_file "$processed_files" "$total_files" "$photo_file" "$output_file"
         cwebp -q "$photo_quality" -metadata all "$photo_file" -o "$output_file" -quiet > /dev/null 2>&1
         copy_photo_metadata "$photo_file" "$output_file"
 
@@ -389,6 +403,7 @@ optimize_videos() {
             continue
         fi
 
+        print_processing_file "$processed_files" "$total_files" "$video_file" "$output_file"
         ffmpeg -i "$video_file" -vcodec libx265 -crf "$video_crf" "$output_file" -y > /dev/null 2>&1
         copy_video_metadata "$video_file" "$output_file"
 
