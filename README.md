@@ -25,6 +25,18 @@ Optional settings:
 ./optimize.sh --input /path/to/media --output /path/to/output --photo-quality 80 --video-crf 32
 ```
 
+By default, existing optimized files are kept so an interrupted folder run can continue:
+
+```bash
+./optimize.sh --input /path/to/media --existing keep
+```
+
+Rewrite already optimized files:
+
+```bash
+./optimize.sh --input /path/to/media --existing rewrite
+```
+
 ## Shell alias
 
 Install a user-level Bash alias in `~/.bash_aliases`:

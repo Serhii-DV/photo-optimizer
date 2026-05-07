@@ -10,8 +10,10 @@ output_directory=""
 photo_quality="$DEFAULT_PHOTO_QUALITY"
 video_crf="$DEFAULT_VIDEO_CRF"
 only="all"
+existing_policy="keep"
 optimized_types=0
 optimized_files=0
+skipped_files=0
 total_original_bytes=0
 total_optimized_bytes=0
 
@@ -25,6 +27,7 @@ Options:
   --photo-quality value      WebP quality for images. Defaults to $DEFAULT_PHOTO_QUALITY.
   --video-crf value          CRF value for videos. Defaults to $DEFAULT_VIDEO_CRF.
   --only photos|videos|all   Optimize only one media type. Defaults to all.
+  --existing keep|rewrite    Keep or rewrite already optimized files. Defaults to keep.
   -h, --help                 Show this help message.
 USAGE
 }
@@ -62,6 +65,11 @@ parse_arguments() {
                 only="$2"
                 shift 2
                 ;;
+            --existing)
+                [ "$#" -ge 2 ] || fail "--existing requires keep or rewrite."
+                existing_policy="$2"
+                shift 2
+                ;;
             -h|--help)
                 show_usage
                 exit 0
@@ -89,6 +97,11 @@ validate_arguments() {
     case "$only" in
         photos|videos|all) ;;
         *) fail "--only must be photos, videos, or all." ;;
+    esac
+
+    case "$existing_policy" in
+        keep|rewrite) ;;
+        *) fail "--existing must be keep or rewrite." ;;
     esac
 
     [[ "$photo_quality" =~ ^[0-9]+$ ]] || fail "--photo-quality must be a number."
@@ -192,9 +205,29 @@ print_file_result() {
         "$(format_percent "$saved_bytes" "$original_bytes")"
 }
 
+print_skipped_file() {
+    local current_file="$1"
+    local total_files="$2"
+    local source_file="$3"
+    local output_file="$4"
+
+    skipped_files=$((skipped_files + 1))
+
+    printf "[%d/%d] %s: skipped, optimized file already exists: %s\n" \
+        "$current_file" \
+        "$total_files" \
+        "$(basename "$source_file")" \
+        "$output_file"
+}
+
 print_summary() {
     [ -d "$input_path" ] || return 0
-    [ "$optimized_files" -gt 0 ] || return 0
+    [ "$optimized_files" -gt 0 ] || [ "$skipped_files" -gt 0 ] || return 0
+
+    if [ "$optimized_files" -eq 0 ]; then
+        printf "Summary: 0 optimized, %d skipped.\n" "$skipped_files"
+        return
+    fi
 
     local saved_bytes=$((total_original_bytes - total_optimized_bytes))
     local saved_label="saved"
@@ -207,8 +240,9 @@ print_summary() {
         absolute_saved_bytes=$((absolute_saved_bytes * -1))
     fi
 
-    printf "Summary: %d file(s), %s (%d bytes) -> %s (%d bytes), %s %s (%d bytes, %s)\n" \
+    printf "Summary: %d optimized, %d skipped, %s (%d bytes) -> %s (%d bytes), %s %s (%d bytes, %s)\n" \
         "$optimized_files" \
+        "$skipped_files" \
         "$(format_bytes "$total_original_bytes")" \
         "$total_original_bytes" \
         "$(format_bytes "$total_optimized_bytes")" \
@@ -239,10 +273,16 @@ optimize_photos() {
         filename="$(basename "${photo_file%.*}")"
         output_file="$output_directory/$filename.webp"
 
+        processed_files=$((processed_files + 1))
+
+        if [ "$existing_policy" = "keep" ] && [ -e "$output_file" ]; then
+            print_skipped_file "$processed_files" "$total_files" "$photo_file" "$output_file"
+            continue
+        fi
+
         cwebp -q "$photo_quality" -metadata all "$photo_file" -o "$output_file" -quiet > /dev/null 2>&1
         copy_photo_metadata "$photo_file" "$output_file"
 
-        processed_files=$((processed_files + 1))
         print_file_result "$processed_files" "$total_files" "$photo_file" "$output_file"
     done
 
@@ -269,10 +309,16 @@ optimize_videos() {
         filename="$(basename "${video_file%.*}")"
         output_file="$output_directory/$filename-small.mp4"
 
+        processed_files=$((processed_files + 1))
+
+        if [ "$existing_policy" = "keep" ] && [ -e "$output_file" ]; then
+            print_skipped_file "$processed_files" "$total_files" "$video_file" "$output_file"
+            continue
+        fi
+
         ffmpeg -i "$video_file" -vcodec libx265 -crf "$video_crf" "$output_file" -y > /dev/null 2>&1
         copy_video_metadata "$video_file" "$output_file"
 
-        processed_files=$((processed_files + 1))
         print_file_result "$processed_files" "$total_files" "$video_file" "$output_file"
     done
 
