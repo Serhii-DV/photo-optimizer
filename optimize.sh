@@ -214,6 +214,51 @@ copy_metadata_with_retries() {
         "$metadata_output" >&2
 }
 
+ensure_output_parent_directory() {
+    local target_file="$1"
+
+    mkdir -p "$(dirname "$target_file")"
+}
+
+prepare_output_directory() {
+    local directory="$1"
+
+    mkdir -p "$directory"
+    cd "$directory" && pwd -P
+}
+
+convert_photo() {
+    local source_file="$1"
+    local target_file="$2"
+    local conversion_output
+
+    ensure_output_parent_directory "$target_file"
+
+    if ! conversion_output=$(cwebp -q "$photo_quality" -metadata all "$source_file" -o "$target_file" -quiet 2>&1); then
+        printf "Error: failed to optimize photo %s\n%s\n" "$source_file" "$conversion_output" >&2
+        return 1
+    fi
+}
+
+convert_video() {
+    local source_file="$1"
+    local target_file="$2"
+    local conversion_output move_output temporary_file
+
+    ensure_output_parent_directory "$target_file"
+    temporary_file="$(mktemp --suffix=.mp4)"
+
+    if ! conversion_output=$(ffmpeg -nostdin -hide_banner -i "$source_file" -vcodec libx265 -crf "$video_crf" "$temporary_file" -y 2>&1); then
+        printf "Error: failed to optimize video %s\n%s\n" "$source_file" "$conversion_output" >&2
+        return 1
+    fi
+
+    if ! move_output=$(mv -f "$temporary_file" "$target_file" 2>&1); then
+        printf "Error: failed to move optimized video to %s\n%s\n" "$target_file" "$move_output" >&2
+        return 1
+    fi
+}
+
 format_bytes() {
     local bytes="$1"
 
@@ -367,7 +412,7 @@ optimize_photos() {
         fi
 
         print_processing_file "$processed_files" "$total_files" "$photo_file" "$output_file"
-        cwebp -q "$photo_quality" -metadata all "$photo_file" -o "$output_file" -quiet > /dev/null 2>&1
+        convert_photo "$photo_file" "$output_file"
         copy_photo_metadata "$photo_file" "$output_file"
 
         print_file_result "$processed_files" "$total_files" "$photo_file" "$output_file"
@@ -404,7 +449,7 @@ optimize_videos() {
         fi
 
         print_processing_file "$processed_files" "$total_files" "$video_file" "$output_file"
-        ffmpeg -i "$video_file" -vcodec libx265 -crf "$video_crf" "$output_file" -y > /dev/null 2>&1
+        convert_video "$video_file" "$output_file"
         copy_video_metadata "$video_file" "$output_file"
 
         print_file_result "$processed_files" "$total_files" "$video_file" "$output_file"
@@ -423,7 +468,7 @@ main() {
     validate_arguments
     require_command numfmt
     require_command stat
-    mkdir -p "$output_directory"
+    output_directory="$(prepare_output_directory "$output_directory")"
 
     if [ "$only" = "photos" ] || [ "$only" = "all" ]; then
         optimize_photos
