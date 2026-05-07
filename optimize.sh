@@ -4,6 +4,8 @@ set -euo pipefail
 
 readonly DEFAULT_PHOTO_QUALITY=80
 readonly DEFAULT_VIDEO_CRF=32
+readonly METADATA_COPY_ATTEMPTS=5
+readonly METADATA_COPY_RETRY_DELAY_SECONDS=1
 
 input_path=""
 output_directory=""
@@ -124,21 +126,41 @@ collect_files() {
 copy_photo_metadata() {
     local source_file="$1"
     local target_file="$2"
-    local metadata_output
 
-    if ! metadata_output=$(exiftool -m -q -overwrite_original_in_place -tagsFromFile "$source_file" -all:all -unsafe "$target_file" 2>&1); then
-        printf "Warning: failed to copy metadata to %s\n%s\n" "$target_file" "$metadata_output" >&2
-    fi
+    copy_metadata_with_retries \
+        "$target_file" \
+        exiftool -m -q -overwrite_original_in_place -tagsFromFile "$source_file" -all:all -unsafe "$target_file"
 }
 
 copy_video_metadata() {
     local source_file="$1"
     local target_file="$2"
-    local metadata_output
 
-    if ! metadata_output=$(exiftool -m -q -overwrite_original_in_place -tagsFromFile "$source_file" "$target_file" 2>&1); then
-        printf "Warning: failed to copy metadata to %s\n%s\n" "$target_file" "$metadata_output" >&2
-    fi
+    copy_metadata_with_retries \
+        "$target_file" \
+        exiftool -m -q -overwrite_original_in_place -tagsFromFile "$source_file" "$target_file"
+}
+
+copy_metadata_with_retries() {
+    local target_file="$1"
+    shift
+
+    local attempt metadata_output
+
+    for ((attempt = 1; attempt <= METADATA_COPY_ATTEMPTS; attempt++)); do
+        if metadata_output=$("$@" 2>&1); then
+            return 0
+        fi
+
+        if [ "$attempt" -lt "$METADATA_COPY_ATTEMPTS" ]; then
+            sleep "$METADATA_COPY_RETRY_DELAY_SECONDS"
+        fi
+    done
+
+    printf "Warning: failed to copy metadata to %s after %d attempts\n%s\n" \
+        "$target_file" \
+        "$METADATA_COPY_ATTEMPTS" \
+        "$metadata_output" >&2
 }
 
 format_bytes() {
