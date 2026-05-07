@@ -20,6 +20,7 @@ install: ## Install dependencies
 	sudo apt-get update
 	sudo apt-get install webp ffmpeg libimage-exiftool-perl
 	chmod +x optimize.sh
+	chmod +x verify_exif.sh
 
 .PHONY: install-alias
 install-alias: ## Add or update a shell alias for optimize.sh

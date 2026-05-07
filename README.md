@@ -37,6 +37,13 @@ Rewrite already optimized files:
 ./optimize.sh --input /path/to/media --existing rewrite
 ```
 
+Verify EXIF data in one image or a folder:
+
+```bash
+./verify_exif.sh --input /path/to/media
+./verify_exif.sh --input /path/to/media/photo.webp
+```
+
 ## Shell alias
 
 Install a user-level Bash alias in `~/.bash_aliases`:
